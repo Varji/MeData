@@ -1,38 +1,53 @@
 import pandas as pd
 
-def extract_data(df, doctor, keywords):
+df = pd.read_excel("c61_fio1_uslugs.xls")
 
-  filtered_df = df[df['name_sotr'] == doctor]
-  extracted_data = []
+def find_data_by_doctor(doctor_names):
+    doctor_names = doctor_names.split(",")
+    doctor_df = df[df["name_sotr"].str.contains('|'.join(doctor_names), case=False, na=False)]
+    data = []
+    for index, row in doctor_df.iterrows():
+        psa = None
+        date = None
+        volume = None
+        hypoechoic_nodes = None
+        invasion = None
+        mts = None
 
-  for index, row in filtered_df.iterrows():
-    protocol_text = row['Протокол']
+        if "ПСА" in row["Протокол"]:
+            psa_start = row["Протокол"].find("ПСА")
+            psa_end = row["Протокол"].find("нг", psa_start)
+            psa = row["Протокол"][psa_start:psa_end].strip()
 
-    patient_data = {
-      'tkey': row['tkey'],
-      'birthday': row['birthday'],
-      'd_prm': row['d_prm'],
-      'idvisit': row['idvisit'],
-      'id_uslug': row['id_uslug'],
-      'name_sotr': row['name_sotr'],
-    }
+        date = row["d_prm"]
 
-    for keyword in keywords:
-      if keyword in protocol_text:
-        if keyword == 'ПСА':
-          psa_value = protocol_text.split(keyword)[1].split('нг')[0].strip()
-          patient_data['ПСА'] = psa_value
-        elif keyword in ['Гипоэхогенные узлы', 'Инвазия', 'Метастазы (mts)']:
-          patient_data[keyword] = protocol_text.split(keyword)[1].strip()
-        else:
-          print(f'Неизвестное ключевое слово: {keyword}')
+        if "Объем" in row["Протокол"]:
+            volume_start = row["Протокол"].find("Объем")
+            volume_end = row["Протокол"].find("см3", volume_start)
+            volume = row["Протокол"][volume_start:volume_end].strip()
 
-    extracted_data.append(patient_data)
+        if "гипоэхоген" in row["Протокол"].lower():
+            hypoechoic_nodes = True
 
-  return pd.DataFrame(extracted_data)
+        if "инвази" in row["Протокол"].lower():
+            invasion = True
 
-df = pd.read_excel('c61_fio1_uslugs.xls')
-doctor = 'ВОЛКОВ ВЛАДИСЛАВ МИХАЙЛОВИЧ'
-keywords = ['Гипоэхогенные узлы', 'Инвазия', 'Метастазы (mts)', 'ПСА']
-extracted_data = extract_data(df, doctor, keywords)
-print(extracted_data.to_string(index=False))
+        if "mts" in row["Протокол"].lower():
+            mts = True
+
+        data.append({
+            "ПСА": psa,
+            "Дата": date,
+            "Объем": volume,
+            "Гипоэхогенные л/узлы": hypoechoic_nodes,
+            "Инвазия за капсулу": invasion,
+            "MTS": mts
+        })
+
+    result_df = pd.DataFrame(data)
+
+    return result_df
+
+result_df = find_data_by_doctor("Волков В.М.,ВОЛКОВ ВЛАДИСЛАВ МИХАЙЛОВИЧ")
+
+result_df.to_excel("volkov_data.xlsx", index=False)
